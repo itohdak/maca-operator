@@ -1,0 +1,34 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - maca.itohdak.github.com
+  resources:
+  - loadtestmanagers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - maca.itohdak.github.com
+  resources:
+  - loadtestmanagers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - maca.itohdak.github.com
+  resources:
+  - loadtestmanagers/status
+  verbs:
+  - get
+  - patch
+  - update

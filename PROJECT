@@ -3,4 +3,14 @@ layout:
 - go.kubebuilder.io/v3
 projectName: macaoperator
 repo: github.com/itohdak/maca-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: itohdak.github.com
+  group: maca
+  kind: LoadTestManager
+  path: github.com/itohdak/maca-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

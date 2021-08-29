@@ -1,0 +1,20 @@
+# permissions for end users to view loadtestmanagers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: loadtestmanager-viewer-role
+rules:
+- apiGroups:
+  - maca.itohdak.github.com
+  resources:
+  - loadtestmanagers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - maca.itohdak.github.com
+  resources:
+  - loadtestmanagers/status
+  verbs:
+  - get

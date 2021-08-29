@@ -1,0 +1,7 @@
+apiVersion: maca.itohdak.github.com/v1alpha1
+kind: LoadTestManager
+metadata:
+  name: loadtestmanager-sample
+spec:
+  # Add fields here
+  foo: bar
