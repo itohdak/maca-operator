@@ -1,0 +1,6 @@
+domain: itohdak.github.com
+layout:
+- go.kubebuilder.io/v3
+projectName: macaoperator
+repo: github.com/itohdak/maca-operator
+version: "3"
