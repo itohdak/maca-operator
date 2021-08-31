@@ -29,7 +29,7 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: controller:latest
+        image: itohdak/maca-operator-controller:latest
         imagePullPolicy: IfNotPresent
         name: manager
         securityContext:
