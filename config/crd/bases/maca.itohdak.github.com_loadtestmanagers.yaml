@@ -16,7 +16,11 @@ spec:
     singular: loadtestmanager
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status
+      name: STATUS
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: LoadTestManager is the Schema for the loadtestmanagers API
@@ -36,14 +40,29 @@ spec:
           spec:
             description: LoadTestManagerSpec defines the desired state of LoadTestManager
             properties:
-              foo:
-                description: Foo is an example field of LoadTestManager. Edit loadtestmanager_types.go
-                  to remove/update
-                type: string
+              replicas:
+                default: 1
+                description: Replicas is the number of load tester instances.
+                format: int32
+                type: integer
+              scripts:
+                additionalProperties:
+                  type: string
+                description: Scripts is the load test scripts written in Python format.
+                type: object
+              targetHost:
+                additionalProperties:
+                  type: string
+                description: TargetHost is the host name to load.
+                type: object
             type: object
           status:
             description: LoadTestManagerStatus defines the observed state of LoadTestManager
-            type: object
+            enum:
+            - NotReady
+            - Available
+            - Testing
+            type: string
         type: object
     served: true
     storage: true

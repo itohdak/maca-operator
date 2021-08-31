@@ -28,18 +28,31 @@ type LoadTestManagerSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of LoadTestManager. Edit loadtestmanager_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Replicas is the number of load tester instances.
+	// +kubebuilder:default=1
+	// +optional
+	Replicas int32 `json:"replicas,omitempty"`
+
+	// TargetHost is the host name to load.
+	TargetHost map[string]string `json:"targetHost,omitempty"`
+
+	// Scripts is the load test scripts written in Python format.
+	Scripts map[string]string `json:"scripts,omitempty"`
 }
 
 // LoadTestManagerStatus defines the observed state of LoadTestManager
-type LoadTestManagerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
+// +kubebuilder:validation:Enum=NotReady;Available;Testing
+type LoadTestManagerStatus string
+
+const (
+	LoadTestManagerNotReady  = LoadTestManagerStatus("NotReady")
+	LoadTestManagerAvailable = LoadTestManagerStatus("Available")
+	LoadTestManagerTesting   = LoadTestManagerStatus("Testing")
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="STATUS",type="string",JSONPath=".status"
 
 // LoadTestManager is the Schema for the loadtestmanagers API
 type LoadTestManager struct {
