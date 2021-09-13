@@ -18,8 +18,12 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	appsv1apply "k8s.io/client-go/applyconfigurations/apps/v1"
+	batchv1apply "k8s.io/client-go/applyconfigurations/batch/v1"
 	corev1apply "k8s.io/client-go/applyconfigurations/core/v1"
 	metav1apply "k8s.io/client-go/applyconfigurations/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -45,6 +50,7 @@ type LoadTestManagerReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+	Jobs     []string
 }
 
 //+kubebuilder:rbac:groups=maca.itohdak.github.com,resources=loadtestmanagers,verbs=get;list;watch;create;update;patch;delete
@@ -54,6 +60,7 @@ type LoadTestManagerReconciler struct {
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;update;patch
+//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -81,6 +88,9 @@ func (r *LoadTestManagerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 	if err = r.reconcileConfigMap2(ctx, ltManager); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err = r.reconcileConfigMap3(ctx, ltManager); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err = r.reconcileDeployment(ctx, ltManager); err != nil {
@@ -136,6 +146,137 @@ func (r *LoadTestManagerReconciler) reconcileConfigMap2(ctx context.Context, ltM
 		}
 		for name, content := range ltManager.Spec.TargetHost {
 			cm.Data[name] = content
+		}
+		return ctrl.SetControllerReference(&ltManager, cm, r.Scheme)
+	})
+
+	if err != nil {
+		logger.Error(err, "failed to create or update ConfigMap")
+		return err
+	}
+	if op != controllerutil.OperationResultNone {
+		logger.Info("reconciled ConfigMap successfully", "op", op)
+	}
+	return nil
+}
+
+func (r *LoadTestManagerReconciler) reconcileJob(ctx context.Context, ltManager macav1alpha1.LoadTestManager) error {
+	logger := log.FromContext(ctx)
+	jobName := r.Jobs[len(r.Jobs)-1]
+	owner, err := ownerRef(ltManager, r.Scheme)
+	if err != nil {
+		return err
+	}
+	labels := map[string]string{
+		"app": "sample-prometheus",
+	}
+	locustSvcName := "locust-master-" + ltManager.Name
+	job := batchv1apply.Job(jobName, ltManager.Namespace).
+		WithLabels(labels).
+		WithOwnerReferences(owner).
+		WithSpec(batchv1apply.JobSpec().
+			WithBackoffLimit(3).
+			WithTemplate(corev1apply.PodTemplateSpec().
+				WithSpec(corev1apply.PodSpec().
+					WithContainers(corev1apply.Container().
+						WithName(jobName).
+						WithImage("itohdak/sample_prometheus").
+						WithImagePullPolicy(corev1.PullIfNotPresent).
+						WithEnv(
+							corev1apply.EnvVar().
+								WithName("LOCUST_HOST").
+								WithValue(locustSvcName),
+							corev1apply.EnvVar().
+								WithName("PROMETHEUS_HOST").
+								WithValue("prometheus.istio-system.svc.cluster.local"), // TODO: 本来なら外部から設定するべき
+						),
+					).
+					WithNodeSelector(map[string]string{
+						"app": "locust",
+					}).
+					WithTolerations(corev1apply.Toleration().
+						WithKey("run").
+						WithOperator("Equal").
+						WithValue("locust").
+						WithEffect("NoSchedule"),
+					).
+					WithRestartPolicy("Never"),
+				),
+			),
+		)
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
+	if err != nil {
+		return err
+	}
+	patch := &unstructured.Unstructured{
+		Object: obj,
+	}
+
+	var current batchv1.Job
+	err = r.Get(ctx, client.ObjectKey{Namespace: ltManager.Namespace, Name: jobName}, &current)
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+
+	currApplyConfig, err := batchv1apply.ExtractJob(&current, "load-test-job-manager-controller")
+	if err != nil {
+		return err
+	}
+
+	if equality.Semantic.DeepEqual(job, currApplyConfig) {
+		return nil
+	}
+
+	err = r.Patch(ctx, patch, client.Apply, &client.PatchOptions{
+		FieldManager: "load-test-job-manager-controller",
+		Force:        pointer.Bool(true),
+	})
+
+	if err != nil {
+		logger.Error(err, "failed to create or update Job")
+		return err
+	}
+	logger.Info("reconciled Job successfully", "name", ltManager.Name)
+	return nil
+}
+func (r *LoadTestManagerReconciler) reconcileConfigMap3(ctx context.Context, ltManager macav1alpha1.LoadTestManager) error {
+	logger := log.FromContext(ctx)
+
+	cm := &corev1.ConfigMap{}
+	cm.SetNamespace(ltManager.Namespace)
+	cm.SetName("status-" + ltManager.Name)
+
+	op, err := ctrl.CreateOrUpdate(ctx, r.Client, cm, func() error {
+		if cm.Data == nil {
+			cm.Data = map[string]string{
+				"status": "standby",
+			}
+		}
+		if cm.Data["status"] == "standby" {
+			// nothing to do
+		} else if cm.Data["status"] == "requesting" {
+			jobName := fmt.Sprintf("load-test-job-%s-%s", RandomString(9), ltManager.Name)
+			r.Jobs = append(r.Jobs, jobName)
+			logger.Info("requesting reconcile for new Job", "name", ltManager.Name)
+			if err := r.reconcileJob(ctx, ltManager); err != nil {
+				return err
+			}
+			cm.Data["status"] = "running"
+		} else if cm.Data["status"] == "running" {
+			if len(r.Jobs) == 0 {
+				err := fmt.Errorf("err")
+				logger.Error(err, "Status is running but job list is empty")
+				return err
+			}
+			name := r.Jobs[len(r.Jobs)-1]
+			var job batchv1.Job
+			err := r.Get(ctx, client.ObjectKey{Namespace: ltManager.Namespace, Name: name}, &job)
+			if err != nil {
+				return err
+			}
+			if job.Status.Succeeded > 0 {
+				cm.Data["status"] = "standby"
+			}
 		}
 		return ctrl.SetControllerReference(&ltManager, cm, r.Scheme)
 	})
@@ -461,6 +602,7 @@ func (r *LoadTestManagerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
+		Owns(&batchv1.Job{}).
 		Complete(r)
 }
 
@@ -494,6 +636,9 @@ func (r *LoadTestManagerReconciler) updateStatus(ctx context.Context, ltManager 
 
 	if ltManager.Status == macav1alpha1.LoadTestManagerNotReady {
 		return ctrl.Result{Requeue: true}, nil
+	} else if ltManager.Status == macav1alpha1.LoadTestManagerTesting {
+		// reconcile after 5 seconds
+		return ctrl.Result{RequeueAfter: time.Duration(5 * 1000 * 1000)}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -515,3 +660,13 @@ func (r *LoadTestManagerReconciler) updateStatus(ctx context.Context, ltManager 
 // 		metrics.HealthyVec.WithLabelValues(ltManager.Name, ltManager.Name).Set(1)
 // 	}
 // }
+
+func RandomString(n int) string {
+	var letter = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
+
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letter[rand.Intn(len(letter))]
+	}
+	return string(b)
+}
