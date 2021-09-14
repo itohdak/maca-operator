@@ -5,7 +5,7 @@ metadata:
 spec:
   replicas: 2
   targetHost:
-    ATTACKED_HOST: "http://35.200.59.102"
+    ATTACKED_HOST: "http://34.84.142.28"
   scripts:
     locustfile.py: |
       # from locust import HttpLocust, TaskSet, task
