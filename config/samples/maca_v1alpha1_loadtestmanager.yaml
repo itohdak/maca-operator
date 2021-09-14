@@ -2,8 +2,12 @@ apiVersion: maca.itohdak.github.com/v1alpha1
 kind: LoadTestManager
 metadata:
   name: loadtestmanager-sample
+  namespace: loadtest
 spec:
   replicas: 2
+  userIncreaseStep: 50
+  loadDuration: 60
+  spawnDuration: 5
   targetHost:
     ATTACKED_HOST: "http://34.84.142.28"
   scripts:

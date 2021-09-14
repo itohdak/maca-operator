@@ -33,6 +33,21 @@ type LoadTestManagerSpec struct {
 	// +optional
 	Replicas int32 `json:"replicas,omitempty"`
 
+	// UserIncreaseStep is the number of user increase between load tests.
+	// +kubebuilder:default=10
+	// +optional
+	UserIncreaseStep int64 `json:"userIncreaseStep,omitempty"`
+
+	// LoadDuration is the number of seconds to keep the load in the same level.
+	// +kubebuilder:default=30
+	// +optional
+	LoadDuration int64 `json:"loadDuration,omitempty"`
+
+	// SpawnDuration is the number of user increase in a second during the load increasing phase.
+	// +kubebuilder:default=5
+	// +optional
+	SpawnDuration int64 `json:"spawnDuration,omitempty"`
+
 	// TargetHost is the host name to load.
 	TargetHost map[string]string `json:"targetHost,omitempty"`
 

@@ -40,6 +40,12 @@ spec:
           spec:
             description: LoadTestManagerSpec defines the desired state of LoadTestManager
             properties:
+              loadDuration:
+                default: 30
+                description: LoadDuration is the number of seconds to keep the load
+                  in the same level.
+                format: int64
+                type: integer
               replicas:
                 default: 1
                 description: Replicas is the number of load tester instances.
@@ -50,11 +56,23 @@ spec:
                   type: string
                 description: Scripts is the load test scripts written in Python format.
                 type: object
+              spawnDuration:
+                default: 5
+                description: SpawnDuration is the number of user increase in a second
+                  during the load increasing phase.
+                format: int64
+                type: integer
               targetHost:
                 additionalProperties:
                   type: string
                 description: TargetHost is the host name to load.
                 type: object
+              userIncreaseStep:
+                default: 10
+                description: UserIncreaseStep is the number of user increase between
+                  load tests.
+                format: int64
+                type: integer
             type: object
           status:
             description: LoadTestManagerStatus defines the observed state of LoadTestManager

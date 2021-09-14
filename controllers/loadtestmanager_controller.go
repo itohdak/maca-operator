@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -181,7 +182,7 @@ func (r *LoadTestManagerReconciler) reconcileJob(ctx context.Context, ltManager 
 					WithContainers(corev1apply.Container().
 						WithName(jobName).
 						WithImage("itohdak/sample_prometheus").
-						WithImagePullPolicy(corev1.PullIfNotPresent).
+						WithImagePullPolicy(corev1.PullAlways).
 						WithEnv(
 							corev1apply.EnvVar().
 								WithName("LOCUST_HOST").
@@ -189,6 +190,15 @@ func (r *LoadTestManagerReconciler) reconcileJob(ctx context.Context, ltManager 
 							corev1apply.EnvVar().
 								WithName("PROMETHEUS_HOST").
 								WithValue("prometheus.istio-system.svc.cluster.local"), // TODO: 本来なら外部から設定するべき
+							corev1apply.EnvVar().
+								WithName("USER_INCREASE_STEP").
+								WithValue(strconv.FormatInt(ltManager.Spec.UserIncreaseStep, 10)),
+							corev1apply.EnvVar().
+								WithName("LOAD_DURATOIN").
+								WithValue(strconv.FormatInt(ltManager.Spec.LoadDuration, 10)),
+							corev1apply.EnvVar().
+								WithName("SPAWN_DURATOIN").
+								WithValue(strconv.FormatInt(ltManager.Spec.SpawnDuration, 10)),
 						),
 					).
 					WithNodeSelector(map[string]string{
