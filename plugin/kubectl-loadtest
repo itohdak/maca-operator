@@ -1,0 +1,27 @@
+#!/bin/bash
+
+if [[ "$1" == "start" ]]
+then
+    # echo "got start"
+    cat <<EOF | kubectl apply -f -
+apiVersion: v1
+data:
+  status: requesting
+kind: ConfigMap
+metadata:
+  name: status-loadtestmanager-sample
+  namespace: loadtest
+EOF
+    exit 0
+fi
+
+if [[ "$1" == "stop" ]]
+then
+    echo "got stop"
+    exit 0
+fi
+
+function usage {
+    echo "usage"
+}
+usage
